@@ -1,0 +1,11 @@
+# NO subir nada privado ni de desarrollo a internet.
+_chat.txt
+analysis/
+.claude/
+*.mjs
+palabras-nuestras.txt
+palabras-internet.txt
+palabras-frases.txt
+LEEME.md
+memory/
+node_modules/

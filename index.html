@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#121213" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Wordle Apoyo" />
+<title>Wordle Apoyo</title>
+<style>
+  :root{
+    --bg:#121213; --fg:#ffffff; --muted:#818384;
+    --tile:#3a3a3c; --tile-border:#3a3a3c; --tile-empty-border:#565758;
+    --key:#818384; --key-fg:#ffffff;
+    --green:#538d4e; --yellow:#b59f3b; --gray:#3a3a3c;
+    --maxw:500px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:"Helvetica Neue",Helvetica,Arial,"Clear Sans",sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    height:100dvh; overflow:hidden; touch-action:manipulation;
+  }
+  header{
+    width:100%; max-width:var(--maxw); border-bottom:1px solid #2c2c2e;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 12px; position:relative;
+  }
+  header .title{
+    font-weight:800; font-size:clamp(20px,6vw,30px); letter-spacing:.5px;
+    text-align:center; flex:1; line-height:1;
+  }
+  header .title small{display:block; font-size:11px; font-weight:600; color:var(--muted); letter-spacing:3px; margin-top:2px;}
+  header button.icon{
+    background:none; border:none; color:var(--fg); font-size:20px; cursor:pointer;
+    width:36px; height:36px; border-radius:50%; display:grid; place-items:center;
+  }
+  header button.icon:hover{background:#2c2c2e;}
+
+  main{
+    width:100%; max-width:var(--maxw); flex:1;
+    display:flex; flex-direction:column; justify-content:space-between;
+    padding:4px 0; min-height:0;
+  }
+
+  #board-wrap{flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden; padding:6px;}
+  #board{display:grid; gap:5px;}
+  .row{display:grid; gap:5px;}
+  .tile{
+    width:100%; aspect-ratio:1/1; display:grid; place-items:center;
+    font-size:clamp(18px,7vw,32px); font-weight:700; text-transform:uppercase;
+    border:2px solid var(--tile-empty-border); color:var(--fg);
+    user-select:none; line-height:1;
+  }
+  .space{background:transparent; border:none;}
+  .tile.ghost{color:#538d4e; opacity:.55; font-style:italic;}
+  .tile.filled{border-color:#666; animation:pop .1s;}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .tile.green{background:var(--green); border-color:var(--green);}
+  .tile.yellow{background:var(--yellow); border-color:var(--yellow);}
+  .tile.gray{background:var(--gray); border-color:var(--gray);}
+  .tile.reveal{animation:flip .5s ease forwards;}
+  @keyframes pop{0%{transform:scale(.9)}100%{transform:scale(1)}}
+  @keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(-90deg)}100%{transform:rotateX(0)}}
+  @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
+  @keyframes bounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-22px)}60%{transform:translateY(-10px)}}
+  .row.shake{animation:shake .5s;}
+  .tile.win{animation:bounce .6s;}
+
+  #keyboard{width:100%; padding:0 6px 8px; display:flex; flex-direction:column; gap:6px;}
+  .krow{display:flex; gap:5px; justify-content:center;}
+  .key{
+    flex:1; height:54px; max-width:44px; border:none; border-radius:5px;
+    background:var(--key); color:var(--key-fg); font-weight:700; font-size:14px;
+    text-transform:uppercase; cursor:pointer; display:grid; place-items:center; padding:0;
+  }
+  .key.wide{flex:1.6; max-width:66px; font-size:11px;}
+  .key.green{background:var(--green);} .key.yellow{background:var(--yellow);} .key.gray{background:var(--gray);}
+  .key svg{width:22px;height:22px;fill:currentColor;}
+  .key:active{filter:brightness(1.2);}
+
+  /* toast */
+  #toast{position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:50; display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none;}
+  .toast-msg{background:#fff; color:#000; font-weight:700; padding:10px 16px; border-radius:6px; font-size:14px; animation:fade .3s; max-width:90vw; text-align:center;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  /* modal */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:60; padding:16px;}
+  .overlay.show{display:flex;}
+  .modal{background:#1a1a1b; border:1px solid #3a3a3c; border-radius:12px; max-width:420px; width:100%; padding:22px 20px; position:relative; max-height:90dvh; overflow:auto;}
+  .modal h2{margin:0 0 4px; font-size:20px; text-align:center;}
+  .modal .close{position:absolute; top:10px; right:12px; background:none; border:none; color:var(--fg); font-size:22px; cursor:pointer;}
+  .answer-box{text-align:center; margin:14px 0;}
+  .answer-word{font-size:30px; font-weight:800; letter-spacing:3px; text-transform:uppercase;}
+  .badge{display:inline-block; margin-top:8px; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px;}
+  .hint-text{margin-top:12px; background:#2c2c2e; border-radius:8px; padding:12px; font-size:14px; line-height:1.45; color:#e6e6e6;}
+  .stats{display:flex; justify-content:space-around; margin:18px 0; text-align:center;}
+  .stats .n{font-size:30px; font-weight:700;} .stats .l{font-size:11px; color:var(--muted); max-width:70px; margin:0 auto;}
+  .btn{display:block; width:100%; padding:13px; border:none; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; margin-top:8px;}
+  .btn.green{background:var(--green); color:#fff;}
+  .btn.gray{background:#3a3a3c; color:#fff;}
+  .dist{margin:6px 0 4px;}
+  .dist .bar{display:flex; align-items:center; gap:6px; margin:3px 0; font-size:12px;}
+  .dist .bar span:first-child{width:10px; text-align:right;}
+  .dist .bar .fill{background:var(--gray); height:18px; border-radius:3px; min-width:20px; text-align:right; color:#fff; padding:0 6px; font-weight:700; line-height:18px;}
+  .dist .bar .fill.cur{background:var(--green);}
+  .help p{font-size:14px; line-height:1.5; color:#e6e6e6;}
+  .ex{display:flex; gap:4px; margin:8px 0;}
+  .ex .tile{width:34px; height:34px; aspect-ratio:auto; font-size:18px; border-width:2px;}
+  .cat-legend{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .cat-legend .badge{font-size:10px;}
+  .footer-note{font-size:11px; color:var(--muted); text-align:center; margin-top:14px;}
+
+  /* category badge colors */
+  .cat-catchphrase{background:#ff6b9d; color:#000;}
+  .cat-frase{background:#ffa94d; color:#000;}
+  .cat-cariño{background:#ff5277; color:#fff;}
+  .cat-mundo{background:#4aa3df; color:#000;}
+  .cat-slang{background:#f3c13a; color:#000;}
+  .cat-nombre{background:#9b8cff; color:#000;}
+  .cat-meme{background:#65d6a0; color:#000;}
+  .cat-insulto{background:#e6492d; color:#fff;}
+  .cat-sexual{background:#d6336c; color:#fff;}
+  .cat-chat{background:#a0a0a2; color:#000;}
+  .cat-palabra{background:#818384; color:#000;}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<header>
+  <button class="icon" id="btn-help" title="Cómo se juega">?</button>
+  <div class="title">WORDLE APOYO<small>ange y kai</small></div>
+  <div style="display:flex">
+    <button class="icon" id="btn-hint" title="Pista">&#128161;</button>
+    <button class="icon" id="btn-stats" title="Estadísticas">&#128202;</button>
+  </div>
+</header>
+
+<main>
+  <div id="board-wrap"><div id="board"></div></div>
+  <div id="keyboard"></div>
+</main>
+
+<!-- ===== modal fin de juego / stats ===== -->
+<div class="overlay" id="overlay-end">
+  <div class="modal">
+    <button class="close" data-close>&times;</button>
+    <h2 id="end-title"></h2>
+    <div class="answer-box" id="answer-box"></div>
+    <div class="stats" id="stats-row"></div>
+    <div class="dist" id="dist"></div>
+    <button class="btn green" id="btn-share">Compartir &#128203;</button>
+    <button class="btn gray" id="btn-again">Jugar otra (modo libre)</button>
+    <div class="footer-note" id="end-note"></div>
+  </div>
+</div>
+
+<!-- ===== modal ayuda ===== -->
+<div class="overlay" id="overlay-help">
+  <div class="modal help">
+    <button class="close" data-close>&times;</button>
+    <h2>Cómo se juega</h2>
+    <p>Adiviná la <b>PALABRA APOYO</b> en 6 intentos. Cada palabra sale del chat de ustedes: chistes internos, apodos, slang y memes.</p>
+    <p>El largo cambia cada día (de 2 a 13 letras, a veces frases). Cada intento tiene que tener todas las letras. Después de cada intento los colores te dicen qué tan cerca estuviste.</p>
+    <div class="ex"><div class="tile green">a</div><div class="tile">p</div><div class="tile">o</div><div class="tile">y</div><div class="tile">o</div></div>
+    <p>La <b>A</b> está en la palabra y en la posición correcta.</p>
+    <div class="ex"><div class="tile">n</div><div class="tile yellow">o</div><div class="tile">n</div><div class="tile">o</div></div>
+    <p>La <b>O</b> está en la palabra pero en otra posición.</p>
+    <div class="ex"><div class="tile">g</div><div class="tile gray">e</div><div class="tile">d</div><div class="tile">e</div></div>
+    <p>La <b>E</b> no está en la palabra (en ese lugar).</p>
+    <p>Hay <b>una palabra por día</b> (la misma para los dos). Si querés seguir jugando, usá <b>modo libre</b> 💚.</p>
+    <p>¿Trabado? Tocá la 💡 (<b>Ayudín</b>): te da la pista, te <b>regala una letra</b> correcta, o te <b>saca letras que no van</b>.</p>
+    <p>Podés tirar <b>cualquier palabra real</b> para ir descartando letras (no hace falta que sea nuestra), pero no garabatos. Si es una <b>frase</b>, escribila <b>sin espacios</b> (ej: «apoyo la call» = APOYOLACALL).</p>
+    <div class="cat-legend">
+      <span class="badge cat-catchphrase">catchphrase</span>
+      <span class="badge cat-frase">frase</span>
+      <span class="badge cat-cariño">cariño</span>
+      <span class="badge cat-mundo">mundo</span>
+      <span class="badge cat-slang">slang</span>
+      <span class="badge cat-nombre">nombre</span>
+      <span class="badge cat-insulto">edgy</span>
+      <span class="badge cat-sexual">+18</span>
+      <span class="badge cat-chat">del chat</span>
+      <span class="badge cat-meme">internet</span>
+    </div>
+    <div class="footer-note">hecho con apoyo total &#10084;</div>
+  </div>
+</div>
+
+<!-- ===== modal ayudín ===== -->
+<div class="overlay" id="overlay-ayuda">
+  <div class="modal">
+    <button class="close" data-close>&times;</button>
+    <h2>Ayudín 🆘</h2>
+    <p style="font-size:13px;color:var(--muted);text-align:center;margin:2px 0 14px">Para cuando te trabás (queda marcado con 💡 al compartir).</p>
+    <div class="hint-text" id="ay-hint-text" style="margin-bottom:14px"></div>
+    <button class="btn green" id="ay-letter">✅ Regalame una letra</button>
+    <button class="btn gray" id="ay-remove">❌ Sacá letras que no van</button>
+  </div>
+</div>
+
+<script src="words.js"></script>
+<script>
+(function(){
+  "use strict";
+  const WORDS = (window.WORDS || []).filter(x => x && x.w && x.w.length>=2 && x.w.length<=13);
+  if(!WORDS.length){ document.body.innerHTML='<p style="padding:20px">No encontré words.js. Corré <code>node generar-palabras.mjs</code>.</p>'; return; }
+
+  // diccionario Wordle Apoyo (siempre válidas)
+  const DICT = new Set(WORDS.map(x=>x.w));
+  // además aceptamos cualquier palabra que "parezca" real (para ir descartando letras),
+  // pero NO gibberish tipo "zvftv".
+  function looksLikeWord(w){
+    if(w.length<2) return false;
+    const v=(w.match(/[aeiouyáéíóúü]/g)||[]).length;
+    if(v===0) return false;                          // sin vocales
+    if(v/w.length < 0.22) return false;               // muy pocas vocales
+    if(/[^aeiouyáéíóúüñ]{4,}/.test(w)) return false;  // 4+ consonantes seguidas
+    if(/(.)\1\1/.test(w)) return false;               // 3 letras iguales seguidas
+    return true;
+  }
+
+  const MAX_GUESS = 6;
+  const LS = "wapoyo_";
+  const KEYS = [
+    "q w e r t y u i o p".split(" "),
+    "a s d f g h j k l ñ".split(" "),
+    ["enter","z","x","c","v","b","n","m","back"]
+  ];
+
+  /* ---------- utilidades de persistencia ---------- */
+  const store = {
+    get(k,d){ try{ return JSON.parse(localStorage.getItem(LS+k)) ?? d; }catch(e){ return d; } },
+    set(k,v){ try{ localStorage.setItem(LS+k, JSON.stringify(v)); }catch(e){} }
+  };
+
+  /* ---------- selección de la palabra del día ---------- */
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  function shuffle(arr,seed){
+    const a=arr.slice(); const rng=mulberry32(seed>>>0);
+    for(let i=a.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+    return a;
+  }
+  // El banco entero ya está curado, así que repartimos parejo: una palabra por día,
+  // sin repetir hasta dar toda la vuelta. Mismo orden para los dos (semilla fija).
+  const ORDER = shuffle(WORDS.map((w,i)=>i), 0x4150);
+  const EPOCH = Date.UTC(2026,0,1);
+  function dateKey(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function dayNumber(d){ const u=Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()); return Math.floor((u-EPOCH)/86400000); }
+  function dailyEntry(){
+    const n=dayNumber(new Date());
+    const idx = ORDER[((n%ORDER.length)+ORDER.length)%ORDER.length];
+    return {entry:WORDS[idx], n:n};
+  }
+
+  /* ---------- estado del juego ---------- */
+  let mode="diario";        // "diario" | "libre"
+  let answer="", entry=null, cols=0;
+  let grid=[];              // filas de letras escritas (confirmadas)
+  let current="";           // fila en edición
+  let rowResults=[];        // resultados por fila ["green",...]
+  let finished=false, won=false;
+  let usedHint=false;
+  let revealedPos={};       // índice -> letra correcta regalada por el ayudín
+  let revealedAbsent=new Set(); // letras descartadas por el ayudín
+
+  const keyState={};        // letra -> mejor estado
+  // reaplica al teclado lo que reveló el ayudín (se pierde al reconstruir desde la grilla)
+  function applyHints(){
+    for(const L of revealedAbsent){ if(!keyState[L]) keyState[L]="gray"; }
+    for(const i in revealedPos){ keyState[revealedPos[i]]="green"; }
+  }
+
+  function startDaily(){
+    mode="diario";
+    const {entry:e}=dailyEntry();
+    entry=e; answer=e.w; cols=answer.length;
+    const saved = store.get("daily",null);
+    const today = dateKey(new Date());
+    if(saved && saved.date===today && saved.answer===answer){
+      grid=saved.grid||[]; rowResults=saved.results||[]; finished=saved.finished; won=saved.won; usedHint=saved.usedHint||false;
+      revealedPos=saved.revealedPos||{}; revealedAbsent=new Set(saved.revealedAbsent||[]);
+    } else {
+      grid=[]; rowResults=[]; finished=false; won=false; usedHint=false;
+      revealedPos={}; revealedAbsent=new Set();
+      store.set("daily",{date:today,answer,grid,results:rowResults,finished,won,usedHint});
+    }
+    rebuildKeyStates(); applyHints();
+    render();
+    if(finished) setTimeout(()=>showEnd(false),350);
+  }
+  function startFree(){
+    mode="libre";
+    // palabra random distinta a la del día
+    const dailyW=dailyEntry().entry.w;
+    let e; do{ e=WORDS[Math.floor(Math.random()*WORDS.length)]; }while(WORDS.length>1 && e.w===dailyW && Math.random()<.5);
+    entry=e; answer=e.w; cols=answer.length;
+    grid=[]; rowResults=[]; current=""; finished=false; won=false; usedHint=false;
+    revealedPos={}; revealedAbsent=new Set();
+    Object.keys(keyState).forEach(k=>delete keyState[k]);
+    closeAll(); render();
+  }
+
+  function persistDaily(){
+    if(mode!=="diario") return;
+    store.set("daily",{date:dateKey(new Date()),answer,grid,results:rowResults,finished,won,usedHint,
+      revealedPos, revealedAbsent:[...revealedAbsent]});
+  }
+
+  /* ---------- evaluación de un intento ---------- */
+  function evaluate(guess){
+    const res=new Array(cols).fill("gray");
+    const ans=answer.split("");
+    const taken=new Array(cols).fill(false);
+    for(let i=0;i<cols;i++){ if(guess[i]===ans[i]){ res[i]="green"; taken[i]=true; } }
+    for(let i=0;i<cols;i++){
+      if(res[i]==="green") continue;
+      for(let j=0;j<cols;j++){
+        if(!taken[j] && guess[i]===ans[j]){ res[i]="yellow"; taken[j]=true; break; }
+      }
+    }
+    return res;
+  }
+  const rank={gray:0,yellow:1,green:2};
+  function rebuildKeyStates(){
+    Object.keys(keyState).forEach(k=>delete keyState[k]);
+    grid.forEach((g,r)=>{ const res=rowResults[r]; if(!res) return;
+      g.split("").forEach((ch,i)=>{ if(!keyState[ch] || rank[res[i]]>rank[keyState[ch]]) keyState[ch]=res[i]; });
+    });
+  }
+
+  /* ---------- input ---------- */
+  let revealing=false, revealingRow=-1;
+  function onKey(k){
+    if(finished || revealing) return;          // bloqueado mientras se revela la fila
+    if(k==="enter") return submit();
+    if(k==="back"){ current=current.slice(0,-1); render(); return; }
+    if(/^[a-zñ]$/.test(k) && current.length<cols){ current+=k; render(); }
+  }
+  function submit(){
+    if(revealing) return;
+    if(current.length<cols){ toast("Faltan letras"); shakeRow(grid.length); return; }
+    // se aceptan palabras de Apoyo + palabras normales; se rechaza el gibberish
+    if(!DICT.has(current) && !looksLikeWord(current)){
+      toast("Esa no parece una palabra"); shakeRow(grid.length); return;
+    }
+    const guess=current;
+    const res=evaluate(guess);
+    grid.push(guess); rowResults.push(res); current="";
+    const rowIdx=grid.length-1;
+    revealingRow=rowIdx;
+    render();                 // dibuja la fila con las letras pero SIN color todavía
+    persistDaily();
+    revealRow(rowIdx, res, ()=>{
+      // recién cuando terminó el revelado pintamos el teclado (como el wordle real)
+      guess.split("").forEach((ch,i)=>{ if(!keyState[ch]||rank[res[i]]>rank[keyState[ch]]) keyState[ch]=res[i]; });
+      renderKeyboard();
+      const isWin=res.every(x=>x==="green");
+      if(isWin){ finished=true; won=true; onFinish(); }
+      else if(grid.length>=MAX_GUESS){ finished=true; won=false; onFinish(); }
+      persistDaily();
+    });
+  }
+  // revela una fila letra por letra: cada tile hace su flip y muestra su color, una tras otra
+  function revealRow(r, res, done){
+    revealing=true; revealingRow=r;
+    const rowEl=board.querySelector(`.row[data-r="${r}"]`);
+    const tiles=rowEl ? [...rowEl.querySelectorAll(".tile")] : [];
+    const STEP=330;   // tiempo entre una letra y la siguiente
+    const HALF=250;   // a mitad del flip (tile de canto) aparece el color
+    tiles.forEach((t,c)=>{
+      setTimeout(()=>{
+        t.classList.add("reveal");
+        setTimeout(()=>{ t.classList.remove("filled"); t.classList.add(res[c]); }, HALF);
+      }, c*STEP);
+    });
+    const total=(tiles.length-1)*STEP + 520;
+    setTimeout(()=>{ revealing=false; revealingRow=-1; if(done) done(); }, total);
+  }
+
+  function onFinish(){
+    if(mode==="diario") updateStats(won, grid.length);
+    persistDaily();
+    if(won) winDance();
+    setTimeout(()=>showEnd(true), won?900:350);
+  }
+
+  /* ---------- estadísticas ---------- */
+  function blankStats(){ return {played:0,wins:0,streak:0,maxStreak:0,dist:[0,0,0,0,0,0],lastDay:null}; }
+  function updateStats(win,tries){
+    const s=store.get("stats",blankStats());
+    const today=dayNumber(new Date());
+    if(s.lastDay===today) return;             // el de hoy ya se contó
+    s.played++;
+    if(win){
+      s.wins++;
+      s.dist[tries-1]++;
+      s.streak = (s.lastDay===today-1) ? s.streak+1 : 1;   // si ayer ganó, sigue la racha
+    } else {
+      s.streak = 0;
+    }
+    if(s.streak>s.maxStreak) s.maxStreak=s.streak;
+    s.lastDay=today;
+    store.set("stats",s);
+  }
+
+  /* ---------- render ---------- */
+  const board=document.getElementById("board");
+  const kb=document.getElementById("keyboard");
+  function render(){
+    board.style.gridTemplateRows=`repeat(${MAX_GUESS},1fr)`;
+    const wrap=document.getElementById("board-wrap");
+    const maxW=Math.min(wrap.clientWidth-12, 360);
+    const maxH=wrap.clientHeight-12;
+    // "slots" = cada caracter de la forma mostrada (con espacios). Los espacios son huecos.
+    const slots=(entry&&entry.disp ? entry.disp : answer).split("");
+    const letterSlots=slots.filter(c=>c!==" ").length; // = cols
+    const spaceSlots=slots.length-letterSlots;
+    const gaps=slots.length-1;
+    const SR=0.45; // ancho del hueco relativo al tile
+    const effUnits=letterSlots+SR*spaceSlots;
+    let tile=Math.floor(Math.min((maxW-gaps*5)/effUnits, (maxH-(MAX_GUESS-1)*5)/MAX_GUESS));
+    const minTile = slots.length>9 ? 18 : 28;
+    tile=Math.max(minTile,Math.min(tile,62));
+    const spaceW=Math.max(8,Math.round(tile*SR));
+    const colTemplate=slots.map(c=> c===" " ? spaceW+"px" : tile+"px").join(" ");
+    const boardW=slots.reduce((a,c)=>a+(c===" "?spaceW:tile),0)+gaps*5;
+    board.style.width=boardW+"px";
+    board.innerHTML="";
+    for(let r=0;r<MAX_GUESS;r++){
+      const row=document.createElement("div"); row.className="row";
+      row.style.gridTemplateColumns=colTemplate;
+      row.dataset.r=r;
+      let letters="", res=null;
+      if(r<grid.length){ letters=grid[r]; res=rowResults[r]; }
+      else if(r===grid.length){ letters=current; }
+      let li=0; // índice de letra (ignora espacios)
+      for(let s=0;s<slots.length;s++){
+        if(slots[s]===" "){ const sp=document.createElement("div"); sp.className="space"; row.appendChild(sp); continue; }
+        const t=document.createElement("div"); t.className="tile"; t.dataset.li=li;
+        const ch=letters[li]||"";
+        if(ch){ t.textContent=ch; if(r===grid.length) t.classList.add("filled"); }
+        else if(r===grid.length && revealedPos[li]!==undefined){ t.textContent=revealedPos[li]; t.classList.add("ghost"); } // letra regalada por el ayudín
+        // la fila que se está revelando se pinta tile por tile en revealRow(), acá no
+        if(res && r!==revealingRow){ t.classList.add(res[li]); }
+        row.appendChild(t); li++;
+      }
+      board.appendChild(row);
+    }
+    renderKeyboard();
+  }
+  function renderKeyboard(){
+    kb.innerHTML="";
+    KEYS.forEach(rowKeys=>{
+      const kr=document.createElement("div"); kr.className="krow";
+      rowKeys.forEach(k=>{
+        const b=document.createElement("button"); b.className="key";
+        if(k==="enter"){ b.classList.add("wide"); b.textContent="Enter"; }
+        else if(k==="back"){ b.classList.add("wide"); b.innerHTML='<svg viewBox="0 0 24 24"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12 19 15.59z"/></svg>'; }
+        else { b.textContent=k; const st=keyState[k]; if(st) b.classList.add(st); }
+        b.addEventListener("click",()=>onKey(k));
+        kr.appendChild(b);
+      });
+      kb.appendChild(kr);
+    });
+  }
+
+  /* ---------- animaciones ---------- */
+  function shakeRow(r){ const el=board.querySelector(`.row[data-r="${r}"]`); if(el){ el.classList.add("shake"); setTimeout(()=>el.classList.remove("shake"),500);} }
+  function winDance(){ const el=board.querySelector(`.row[data-r="${grid.length-1}"]`); if(!el) return; [...el.querySelectorAll(".tile")].forEach((t,i)=>{ t.classList.add("win"); t.style.animationDelay=(i*80)+"ms"; }); }
+
+  /* ---------- toast ---------- */
+  let toastT;
+  function toast(msg){ const c=document.getElementById("toast"); const d=document.createElement("div"); d.className="toast-msg"; d.textContent=msg; c.appendChild(d); setTimeout(()=>d.remove(),1300); }
+
+  /* ---------- modales ---------- */
+  function closeAll(){ document.querySelectorAll(".overlay").forEach(o=>o.classList.remove("show")); }
+  function catBadge(cat){ const names={catchphrase:"catchphrase",frase:"frase",cariño:"cariño",mundo:"mundo",slang:"slang",nombre:"nombre",insulto:"edgy",sexual:"+18",chat:"del chat",meme:"internet",palabra:"palabra"}; return `<span class="badge cat-${cat}">${names[cat]||cat}</span>`; }
+
+  function showEnd(justFinished){
+    const title=document.getElementById("end-title");
+    const ab=document.getElementById("answer-box");
+    if(won){ const msgs=["¡APOYO TOTAL!","¡Letal!","¡Cracka!","¡Tremenda!","Mistiva pura ✨","¡Posta que sí!"]; title.textContent=justFinished? msgs[Math.min(grid.length-1,msgs.length-1)] : "Ya jugaste hoy"; }
+    else { title.textContent="Mañana es otro día 💚"; }
+    ab.innerHTML = `<div class="answer-word">${escapeHtml(entry.disp||answer)}</div>${catBadge(entry.cat)}<div class="hint-text">${escapeHtml(entry.hint||"")}</div>`;
+
+    // stats
+    const s=store.get("stats",blankStats());
+    document.getElementById("stats-row").innerHTML=
+      stat(s.played,"jugadas")+stat(s.played?Math.round(s.wins/s.played*100):0,"% ganadas")+stat(s.streak,"racha")+stat(s.maxStreak,"mejor racha");
+    // distribución
+    const maxd=Math.max(1,...s.dist);
+    document.getElementById("dist").innerHTML="<div style='font-size:12px;color:var(--muted);margin-bottom:4px'>intentos</div>"+
+      s.dist.map((v,i)=>{ const cur=(won&&mode==='diario'&&i===grid.length-1); return `<div class="bar"><span>${i+1}</span><div class="fill ${cur?'cur':''}" style="width:${Math.max(8,v/maxd*100)}%">${v}</div></div>`; }).join("");
+
+    const note=document.getElementById("end-note");
+    note.textContent = mode==="diario" ? ("Palabra del día · #"+(dailyEntry().n)) : "modo libre (no cuenta para la racha)";
+    document.getElementById("overlay-end").classList.add("show");
+  }
+  function stat(n,l){ return `<div><div class="n">${n}</div><div class="l">${l}</div></div>`; }
+  function escapeHtml(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  /* ---------- compartir ---------- */
+  function shareText(){
+    const head = mode==="diario" ? ("Wordle Apoyo #"+dailyEntry().n) : "Wordle Apoyo (libre)";
+    const score = won? grid.length+"/6" : "X/6";
+    const emoji = {green:"🟩",yellow:"🟨",gray:"⬛"};
+    const body = rowResults.map(r=>r.map(x=>emoji[x]).join("")).join("\n");
+    return `${head} ${score}${usedHint?" 💡":""}\n${body}\nange y kai`;
+  }
+  function doShare(){
+    const txt=shareText();
+    if(navigator.share){ navigator.share({text:txt}).catch(()=>{}); return; }
+    navigator.clipboard?.writeText(txt).then(()=>toast("¡Copiado!"),()=>fallbackCopy(txt));
+  }
+  function fallbackCopy(txt){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy"); toast("¡Copiado!");}catch(e){toast("Copiá a mano");} ta.remove(); }
+
+  /* ---------- ayudín (pista + boosts) ---------- */
+  function openAyuda(){
+    if(!entry) return;
+    document.getElementById("ay-hint-text").textContent = "💡 "+(entry.hint||"sin pista");
+    // deshabilitar botones que ya no aplican
+    document.getElementById("ay-letter").disabled = finished;
+    document.getElementById("ay-remove").disabled = finished;
+    document.getElementById("overlay-ayuda").classList.add("show");
+  }
+  function solvedPositions(){
+    const s=new Set(Object.keys(revealedPos).map(Number));
+    grid.forEach((g,r)=>{ const res=rowResults[r]; if(res) res.forEach((x,i)=>{ if(x==="green") s.add(i); }); });
+    return s;
+  }
+  function giveLetter(){
+    if(finished) return;
+    const solved=solvedPositions();
+    const cand=[]; for(let i=0;i<cols;i++) if(!solved.has(i)) cand.push(i);
+    if(!cand.length){ toast("Ya tenés todas 😏"); return; }
+    const i=cand[Math.floor(Math.random()*cand.length)];
+    revealedPos[i]=answer[i]; keyState[answer[i]]="green";
+    usedHint=true; persistDaily(); render(); closeAll();
+    toast("Te regalé una letra ✅");
+  }
+  function removeLetters(){
+    if(finished) return;
+    const inWord=new Set(answer.split(""));
+    const alpha="abcdefghijklmnopqrstuvwxyzñ".split("");
+    const cand=alpha.filter(L=> !inWord.has(L) && keyState[L]!=="gray" && !revealedAbsent.has(L));
+    if(!cand.length){ toast("Ya no quedan letras para sacar"); return; }
+    for(let k=cand.length-1;k>0;k--){ const j=Math.floor(Math.random()*(k+1)); [cand[k],cand[j]]=[cand[j],cand[k]]; }
+    const picked=cand.slice(0,3);
+    picked.forEach(L=>{ revealedAbsent.add(L); keyState[L]="gray"; });
+    usedHint=true; persistDaily(); render(); closeAll();
+    toast("Saqué "+picked.length+" letra"+(picked.length>1?"s":"")+" que no van ❌");
+  }
+
+  /* ---------- eventos ---------- */
+  document.addEventListener("keydown",e=>{
+    if(document.querySelector(".overlay.show")) { if(e.key==="Escape") closeAll(); return; }
+    const k=e.key.toLowerCase();
+    if(k==="enter") onKey("enter");
+    else if(k==="backspace") onKey("back");
+    else if(k==="ñ") onKey("ñ");
+    else if(/^[a-z]$/.test(k)) onKey(k);
+  });
+  document.getElementById("btn-help").onclick=()=>document.getElementById("overlay-help").classList.add("show");
+  document.getElementById("btn-stats").onclick=()=>{ if(!entry) return; showEndStatsOnly(); };
+  document.getElementById("btn-hint").onclick=openAyuda;
+  document.getElementById("ay-letter").onclick=giveLetter;
+  document.getElementById("ay-remove").onclick=removeLetters;
+  document.getElementById("btn-share").onclick=doShare;
+  document.getElementById("btn-again").onclick=startFree;
+  document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeAll);
+  document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{ if(e.target===o) closeAll(); }));
+  window.addEventListener("resize",()=>render());
+
+  function showEndStatsOnly(){
+    // muestra stats aunque no haya terminado, sin spoilear la respuesta
+    if(finished){ showEnd(false); return; }
+    const ab=document.getElementById("answer-box");
+    document.getElementById("end-title").textContent="Tus estadísticas";
+    ab.innerHTML="";
+    const s=store.get("stats",blankStats());
+    document.getElementById("stats-row").innerHTML=
+      stat(s.played,"jugadas")+stat(s.played?Math.round(s.wins/s.played*100):0,"% ganadas")+stat(s.streak,"racha")+stat(s.maxStreak,"mejor racha");
+    const maxd=Math.max(1,...s.dist);
+    document.getElementById("dist").innerHTML="<div style='font-size:12px;color:var(--muted);margin-bottom:4px'>intentos</div>"+
+      s.dist.map((v,i)=>`<div class="bar"><span>${i+1}</span><div class="fill" style="width:${Math.max(8,v/maxd*100)}%">${v}</div></div>`).join("");
+    document.getElementById("btn-share").style.display="none";
+    document.getElementById("end-note").textContent="seguí jugando, no te rindas 💚";
+    document.getElementById("overlay-end").classList.add("show");
+    document.getElementById("overlay-end").addEventListener("transitionend",()=>{},{once:true});
+  }
+  // al cerrar el modal de stats-only, restaurar boton share
+  document.getElementById("overlay-end").addEventListener("click",()=>{ document.getElementById("btn-share").style.display=""; });
+
+  /* ---------- arranque ---------- */
+  startDaily();
+  // primera vez: mostrar ayuda
+  if(!store.get("seenHelp",false)){ document.getElementById("overlay-help").classList.add("show"); store.set("seenHelp",true); }
+})();
+</script>
+</body>
+</html>
