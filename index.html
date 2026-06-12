@@ -293,11 +293,12 @@
     render();
     if(finished) setTimeout(()=>showEnd(false),350);
   }
+  let lastFree="";
   function startFree(){
     mode="libre";
-    // palabra random distinta a la del día
-    const dailyW=dailyEntry().entry.w;
-    let e; do{ e=WORDS[Math.floor(Math.random()*WORDS.length)]; }while(WORDS.length>1 && e.w===dailyW && Math.random()<.5);
+    // 100% random siempre; lo único que evitamos es repetir la misma palabra dos veces seguidas
+    let e; do{ e=WORDS[Math.floor(Math.random()*WORDS.length)]; }while(WORDS.length>1 && e.w===lastFree);
+    lastFree=e.w;
     entry=e; answer=e.w; cols=answer.length;
     grid=[]; rowResults=[]; current=""; finished=false; won=false; usedHint=false;
     revealedPos={}; revealedAbsent=new Set();
