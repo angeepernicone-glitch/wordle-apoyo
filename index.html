@@ -246,6 +246,9 @@
   const PING_URL = "https://discord.com/api/webhooks/1520756629740453918/qz4byERG_Z6_08pk8ELtR32YB-hoUNkmCxkzS3Cxp19ZqHAvEOdPiDfwxn4cYqAvv-09"; // webhook de Discord (avisos privados)
   if(/[?&]yo(\b|=)/.test(location.search)) store.set("owner", true);
   function quienSoy(){ return store.get("owner",false) ? "vos (ange)" : "alguien (¿kai?)"; }
+  const SESSION_START = Date.now();
+  let playedCount = 0, sentExit = false;
+  function minutos(){ return Math.max(1, Math.round((Date.now()-SESSION_START)/60000)); }
   function ping(msg){
     if(!PING_URL) return;
     try{
@@ -254,18 +257,27 @@
       fetch(PING_URL,{method:"POST",body:fd,mode:"no-cors",keepalive:true}).catch(()=>{});
     }catch(e){}
   }
-  function pingVisita(){
-    const hoy = dateKey(new Date());
-    if(store.get("pingDay","")===hoy) return;        // un aviso por día por dispositivo
-    store.set("pingDay",hoy);
+  function pingVisita(){   // avisa CADA vez que alguien entra
     ping("👀 entró al Wordle Apoyo — "+quienSoy()+" · "+new Date().toLocaleString());
   }
-  function pingResultado(){
+  function pingResultado(){   // avisa de TODA palabra terminada (diaria o libre)
+    playedCount++;
     const w = entry.disp||entry.w;
-    const t = won ? ("✅ completó la del día (**"+w+"**) en "+grid.length+"/6")
-                  : ("❌ no pudo con la del día (**"+w+"**)");
-    ping(t+" — "+quienSoy()+" · "+new Date().toLocaleString());
+    const modo = mode==="diario" ? "la del día" : "una libre";
+    const t = won ? ("✅ resolvió "+modo+" (**"+w+"**) en "+grid.length+"/6")
+                  : ("❌ no pudo con "+modo+" (**"+w+"**)");
+    ping(t+" · palabra #"+playedCount+" de la sesión · lleva ~"+minutos()+" min jugando — "+quienSoy());
   }
+  function pingSalida(){   // best-effort: cuando cierra la página, resumen de la sesión
+    if(sentExit) return;
+    sentExit = true;
+    const msg = "👋 se fue — jugó "+playedCount+" palabra(s) en ~"+minutos()+" min — "+quienSoy();
+    try{
+      const fd=new FormData(); fd.append("payload_json", JSON.stringify({content:msg}));
+      if(navigator.sendBeacon) navigator.sendBeacon(PING_URL, fd); else ping(msg);
+    }catch(e){ ping(msg); }
+  }
+  window.addEventListener("pagehide", pingSalida);
 
   /* ---------- selección de la palabra del día ---------- */
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -413,7 +425,8 @@
   }
 
   function onFinish(){
-    if(mode==="diario"){ updateStats(won, grid.length); pingResultado(); }
+    if(mode==="diario") updateStats(won, grid.length);
+    pingResultado();   // avisar de TODA palabra (diaria o libre)
     persistDaily();
     if(won) winDance();
     setTimeout(()=>showEnd(true), won?900:350);
