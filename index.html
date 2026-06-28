@@ -238,6 +238,35 @@
     set(k,v){ try{ localStorage.setItem(LS+k, JSON.stringify(v)); }catch(e){} }
   };
 
+  /* ---------- avisos privados (SOLO para ange) ----------------------
+     Manda un ping invisible a un webhook de Discord cuando alguien entra
+     o completa la palabra del día. Si PING_URL está vacío, no hace nada.
+     Para marcar TU celu como "vos": abrí el link una vez con  ?yo
+     (ej: .../wordle-apoyo/?yo). Las demás visitas figuran como "¿kai?". */
+  const PING_URL = "https://discord.com/api/webhooks/1520756629740453918/qz4byERG_Z6_08pk8ELtR32YB-hoUNkmCxkzS3Cxp19ZqHAvEOdPiDfwxn4cYqAvv-09"; // webhook de Discord (avisos privados)
+  if(/[?&]yo(\b|=)/.test(location.search)) store.set("owner", true);
+  function quienSoy(){ return store.get("owner",false) ? "vos (ange)" : "alguien (¿kai?)"; }
+  function ping(msg){
+    if(!PING_URL) return;
+    try{
+      // FormData (multipart) + no-cors => no lo bloquea el navegador. Discord lee 'payload_json'.
+      const fd=new FormData(); fd.append("payload_json", JSON.stringify({content:msg}));
+      fetch(PING_URL,{method:"POST",body:fd,mode:"no-cors",keepalive:true}).catch(()=>{});
+    }catch(e){}
+  }
+  function pingVisita(){
+    const hoy = dateKey(new Date());
+    if(store.get("pingDay","")===hoy) return;        // un aviso por día por dispositivo
+    store.set("pingDay",hoy);
+    ping("👀 entró al Wordle Apoyo — "+quienSoy()+" · "+new Date().toLocaleString());
+  }
+  function pingResultado(){
+    const w = entry.disp||entry.w;
+    const t = won ? ("✅ completó la del día (**"+w+"**) en "+grid.length+"/6")
+                  : ("❌ no pudo con la del día (**"+w+"**)");
+    ping(t+" — "+quienSoy()+" · "+new Date().toLocaleString());
+  }
+
   /* ---------- selección de la palabra del día ---------- */
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
   function shuffle(arr,seed){
@@ -384,7 +413,7 @@
   }
 
   function onFinish(){
-    if(mode==="diario") updateStats(won, grid.length);
+    if(mode==="diario"){ updateStats(won, grid.length); pingResultado(); }
     persistDaily();
     if(won) winDance();
     setTimeout(()=>showEnd(true), won?900:350);
@@ -599,6 +628,7 @@
 
   /* ---------- arranque ---------- */
   startDaily();
+  pingVisita(); // aviso privado de "entró alguien" (1 por día por dispositivo)
   // primera vez: mostrar ayuda
   if(!store.get("seenHelp",false)){ document.getElementById("overlay-help").classList.add("show"); store.set("seenHelp",true); }
 })();
